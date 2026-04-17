@@ -4,27 +4,28 @@ import pandas as pd
 # Configuração da página
 st.set_page_config(page_title="BKS Distribuidora", page_icon="💊")
 
-# Estilização para a pergunta final parecer um diálogo
+# Estilização básica
 st.markdown("""
     <style>
-    .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #0e1117; color: white; }
-    .stButton>button:hover { background-color: #262730; border: 1px solid #4CAF50; }
+    .stButton>button { width: 100%; border-radius: 5px; height: 3em; }
     </style>
     """, unsafe_allow_html=True)
 
 # 1. Saudação e Nome da Empresa
 st.title("🇧🇷 BKS DISTRIBUIDORA DE MEDICAMENTOS")
 
-# Inicializar o estado da consulta se não existir
+# Inicializar estados de controle
 if 'consulta_ativa' not in st.session_state:
     st.session_state.consulta_ativa = True
 
 def encerrar():
     st.session_state.consulta_ativa = False
 
-def reiniciar():
-    st.session_state.consulta_ativa = True
-    # Limpa o cache de inputs se necessário
+def reiniciar_consulta():
+    # Limpa as chaves de busca para permitir nova entrada
+    if "busca" in st.session_state:
+        st.session_state.busca = ""
+    st.rerun()
 
 if st.session_state.consulta_ativa:
     # 2. Qual o seu nome
@@ -38,7 +39,6 @@ if st.session_state.consulta_ativa:
         
         @st.cache_data
         def carregar_dados(url_planilha):
-            # Lendo a planilha (cabeçalho na linha 2)
             return pd.read_excel(url_planilha, header=1)
 
         try:
@@ -51,16 +51,20 @@ if st.session_state.consulta_ativa:
                 # 5. Procure o código de referência
                 filtro = df[df['Cód. Referência'].astype(str) == str(cod_busca)]
 
-                # 6 e 7. Caso não ache, informa e permite nova consulta (o campo continua ali)
                 if filtro.empty:
+                    # 6 e 7. Caso não ache, informa e permite nova tentativa
                     st.error("⚠️ Código não cadastrado!!! Por favor, verifique o número e tente novamente.")
                 else:
-                    # 8. Se achar, soma a Qtd. Disponível
+                    # 8. Soma a Qtd. Disponível
                     soma_qtd = filtro['Qtd. Disponível'].sum()
                     
                     # 9. Informe o Cód. Referência e a soma
                     st.success(f"### Resultado para o Código: {cod_busca}")
                     st.metric(label="Total Disponível em Estoque", value=int(soma_qtd))
+                    
+                    # REATIVADO: Mostrar a lista de itens encontrados
+                    with st.expander("Clique aqui para ver a lista detalhada de lotes"):
+                        st.dataframe(filtro[['Cód. Referência', 'Descrição', 'Nº Lote', 'Dt. Produção', 'Qtd. Disponível', 'Observação']])
                     
                     st.divider()
                     
@@ -69,8 +73,9 @@ if st.session_state.consulta_ativa:
                     col1, col2 = st.columns(2)
                     
                     with col1:
-                        if st.button("✅ SIM (Realizar nova consulta)"):
-                            st.rerun() # Reinicia o fluxo do passo 4
+                        # O botão "Sim" agora chama a função de limpeza e reinício
+                        if st.button("✅ SIM (Nova consulta)"):
+                            reiniciar_consulta()
                             
                     with col2:
                         if st.button("❌ NÃO (Encerrar)"):
@@ -78,15 +83,15 @@ if st.session_state.consulta_ativa:
                             st.rerun()
 
         except Exception as e:
-            st.error(f"Erro ao acessar o banco de dados: {e}")
+            st.error(f"Erro ao acessar a base de dados: {e}")
 else:
     # Tela de encerramento
     st.balloons()
-    st.success("Consulta finalizada com sucesso!")
+    st.success("Consulta finalizada!")
     st.write("Obrigado por utilizar o sistema da **BKS Distribuidora de Medicamentos**.")
-    if st.button("Voltar ao Início"):
-        reiniciar()
+    if st.button("Fazer nova consulta"):
+        st.session_state.consulta_ativa = True
         st.rerun()
 
 st.divider()
-st.caption("BKS Distribuidora - Dashboard de Consulta v2.0")
+st.caption("BKS Distribuidora - Sistema de Gestão de Estoque")
